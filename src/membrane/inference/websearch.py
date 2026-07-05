@@ -99,8 +99,9 @@ def search_web(query: str, config: WebSearchConfig) -> list[SearchResult]:
 
 _DECISION_SYSTEM = """You decide whether a web search would improve the answer to the user's latest message.
 
-Search when the message needs fresh, external, or factual information: news, current events, prices, weather, releases, documentation, facts you may not know or that change over time.
-Do NOT search for greetings, personal questions about the user, opinions, creative writing, or anything answerable from the conversation itself.
+Prefer searching when external context would strengthen your case: news, current events, prices, weather, releases, documentation, comparisons, or facts you may not know or that change over time.
+When unsure whether search would help, lean toward searching rather than answering from memory alone.
+Do NOT search for pure greetings, creative writing with no factual needs, or trivial acknowledgments.
 
 Today's date: {today}
 

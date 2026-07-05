@@ -787,6 +787,15 @@ def create_app(ui_dist: Path | None = None) -> FastAPI:
                 turn_meta["thinking"] = "".join(thinking_parts)
             final = logger.record_turn(session_id, "assistant", reply, turn_metadata=turn_meta)
 
+            yield json.dumps(
+                {
+                    "context_usage": builder.estimate_context_usage(
+                        final.turns,
+                        tools_breakdown=tool_tokens or None,
+                    )
+                }
+            ) + "\n"
+
             memory_suggestions: list[dict] = []
             if persona.memory.confirm_before_save:
                 try:

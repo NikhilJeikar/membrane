@@ -400,6 +400,7 @@ export type ContextUsage = {
   tools_tokens: number;
   tools_breakdown: Record<string, number>;
   conversation_tokens: number;
+  reasoning_tokens?: number;
   draft_tokens: number;
   context_limit: number;
   remaining_tokens: number;

@@ -32,8 +32,14 @@ class ContextBuilder:
             user_identity,
             "Every message labeled 'user' in this conversation is from them.",
             "The profile, preferences, and episodes below describe this same person — treat 'me' / 'my' as referring to them.",
-            "Use ONLY facts from the memory sections below.",
-            "If information is missing, ask — do not invent facts about the user.",
+            "Use facts from the memory sections below; do not invent user facts.",
+            "If information is missing, ask — do not guess about the user.",
+            "",
+            "[MEMORY GROWTH]",
+            "Actively broaden what you know about them over time.",
+            "When gaps in profile, preferences, or context would weaken your advice, ask targeted follow-ups.",
+            "Treat goals, constraints, habits, and preferences (including soft ones) as worth remembering when they share them.",
+            "Prefer learning and gathering context over staying shallow — a richer picture helps you make stronger, more personalized cases.",
         ]
 
         identity = self.persona.identity
@@ -200,12 +206,23 @@ class ContextBuilder:
             }
         return self._estimate_tools_breakdown(turns, draft_user=draft_user)
 
+    def _reasoning_tokens_from_turns(self, turns: list[ChatTurn]) -> int:
+        total_chars = 0
+        for turn in turns:
+            if turn.role != "assistant" or not isinstance(turn.metadata, dict):
+                continue
+            thinking = turn.metadata.get("thinking")
+            if isinstance(thinking, str) and thinking:
+                total_chars += len(thinking)
+        return self._chars_to_tokens(total_chars)
+
     def estimate_context_usage(
         self,
         turns: list[ChatTurn],
         *,
         draft_user: str | None = None,
         tools_breakdown: dict[str, int] | None = None,
+        reasoning_tokens: int | None = None,
     ) -> dict:
         """Rough token budget for the next model call (chars / 4 heuristic)."""
         draft = (draft_user or "").strip()
@@ -229,9 +246,20 @@ class ContextBuilder:
             tools_breakdown=tools_breakdown,
         )
         tools_tokens = sum(breakdown.values())
+        reasoning = (
+            max(0, int(reasoning_tokens))
+            if reasoning_tokens is not None
+            else self._reasoning_tokens_from_turns(base_turns)
+        )
         tools_chars = tools_tokens * 4
+        reasoning_chars = reasoning * 4
         total_chars = (
-            system_base_chars + memory_chars + conversation_chars + draft_chars + tools_chars
+            system_base_chars
+            + memory_chars
+            + conversation_chars
+            + draft_chars
+            + tools_chars
+            + reasoning_chars
         )
         estimated_tokens = max(0, total_chars // 4)
         limit = self.persona.llm.context_window
@@ -247,6 +275,7 @@ class ContextBuilder:
             "tools_tokens": tools_tokens,
             "tools_breakdown": breakdown,
             "conversation_tokens": conversation_chars // 4,
+            "reasoning_tokens": reasoning,
             "draft_tokens": draft_chars // 4 if draft else 0,
             "context_limit": limit,
             "remaining_tokens": remaining,

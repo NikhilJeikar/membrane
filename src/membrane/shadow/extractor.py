@@ -50,7 +50,8 @@ SERVER_SOURCE_LABELS: dict[str, tuple[MemorySource, str]] = {
 EXTRACTION_SYSTEM = """You extract structured memory about ONE person (the SELF user) from chat logs.
 Rules:
 - Extract facts about SELF only, not other people's private details.
-- Prefer stable profile facts, communication preferences, and episodic summaries of plans/events.
+- Prefer inclusion over omission: capture stable profile facts, goals, working style, communication preferences, and episodic summaries when there is reasonable evidence.
+- When in doubt whether something is worth saving, include it with moderate confidence rather than skipping.
 - Do not invent information not supported by the chat.
 - Return valid JSON only."""
 
@@ -64,7 +65,7 @@ Return JSON with this shape:
   "episodes": [{{"summary": "...", "tags": ["work"], "date": "YYYY-MM-DD or null"}}]
 }}
 
-If nothing useful, return empty arrays.
+If nothing clearly useful, return empty arrays. When there is reasonable evidence, prefer capturing it.
 
 Chat:
 {chunk}

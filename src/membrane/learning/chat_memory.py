@@ -13,8 +13,9 @@ from membrane.shadow.extractor import EXTRACTION_SYSTEM, ShadowExtractor
 
 _TURN_EXTRACTION_USER = """The SELF user is: {self_names}.
 
-From this chat exchange, extract ONLY stable profile facts or communication preferences about SELF worth remembering long-term.
-Skip one-off questions, small talk, and facts already implied by generic assistant behavior.
+From this chat exchange, extract profile facts and communication preferences about SELF that would help personalize future assistance.
+Prefer inclusion over omission: capture goals, working style, recurring themes, and durable preferences when there is reasonable evidence — not only rigid "stable" facts.
+Skip pure small talk with no lasting signal, but when a turn reveals something useful, include it rather than returning empty arrays.
 Do not extract episodes.
 
 Return JSON:
@@ -22,8 +23,6 @@ Return JSON:
   "profiles": [{{"key": "snake_case", "value": "...", "confidence": 0.0-1.0, "evidence": ["quote"]}}],
   "preferences": [{{"key": "snake_case", "value": "...", "strength": 0.0-1.0, "evidence": ["quote"]}}]
 }}
-
-Return empty arrays when nothing is worth saving.
 
 USER: {user_message}
 ASSISTANT: {assistant_reply}
@@ -37,7 +36,7 @@ def suggest_memory_from_turn(
     assistant_reply: str,
     *,
     client: OllamaClient | None = None,
-    max_suggestions: int = 2,
+    max_suggestions: int = 4,
 ) -> list[MemoryProposal]:
     """Return profile/preference proposals for one chat turn (not yet saved)."""
     if not (persona.memory.use_profile or persona.memory.use_preferences):

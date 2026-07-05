@@ -36,6 +36,14 @@ def test_system_prompt_links_chat_user_to_profile(tmp_path):
     assert "Nikhil's assistant" in prompt
 
 
+def test_system_prompt_memory_growth(tmp_path):
+    builder = ContextBuilder(MemoryStore(tmp_path), PersonaConfig())
+    prompt = builder.build_system_prompt()
+    assert "[MEMORY GROWTH]" in prompt
+    assert "broaden what you know" in prompt
+    assert "stronger, more personalized" in prompt
+
+
 def test_system_prompt_independent_opinions(tmp_path):
     enabled = ContextBuilder(
         MemoryStore(tmp_path),
@@ -92,6 +100,22 @@ def test_estimate_context_usage_includes_tools_breakdown(tmp_path):
     assert usage["tools_tokens"] == 600
     assert usage["tools_breakdown"] == {"web_search": 200, "firecrawl": 400}
     assert usage["estimated_tokens"] >= usage["tools_tokens"]
+
+
+def test_estimate_context_usage_includes_reasoning_tokens(tmp_path):
+    store = MemoryStore(tmp_path)
+    builder = ContextBuilder(store, PersonaConfig())
+    turns = [
+        ChatTurn(role="user", content="Solve this"),
+        ChatTurn(
+            role="assistant",
+            content="The answer is 4.",
+            metadata={"thinking": "x" * 400},
+        ),
+    ]
+    usage = builder.estimate_context_usage(turns)
+    assert usage["reasoning_tokens"] == 100
+    assert usage["estimated_tokens"] >= usage["reasoning_tokens"]
 
 
 def test_estimate_context_usage_accepts_explicit_tools(tmp_path):

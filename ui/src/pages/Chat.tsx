@@ -216,6 +216,14 @@ function ContextUsageRing({ usage }: { usage: ContextUsage | null }) {
               total={usage.estimated_tokens}
               tone="blue"
             />
+            {(usage.reasoning_tokens ?? 0) > 0 && (
+              <BreakdownRow
+                label="Reasoning"
+                tokens={usage.reasoning_tokens ?? 0}
+                total={usage.estimated_tokens}
+                tone="violet"
+              />
+            )}
             {usage.draft_tokens > 0 && (
               <BreakdownRow
                 label="Draft message"
@@ -909,7 +917,27 @@ export default function ChatPage() {
         (context) => setContextEvent(context),
         (usage) => setContextUsage(usage),
         (event) => setShellEvent(event),
-        (delta) => setStreamThinking((prev) => (prev ?? "") + delta)
+        (delta) => {
+          setStreamThinking((prev) => (prev ?? "") + delta);
+          setContextUsage((prev) => {
+            if (!prev) return prev;
+            const deltaTokens = Math.max(1, Math.ceil(delta.length / 4));
+            const reasoning_tokens = (prev.reasoning_tokens ?? 0) + deltaTokens;
+            const estimated_tokens = prev.estimated_tokens + deltaTokens;
+            const remaining_tokens = Math.max(0, prev.context_limit - estimated_tokens);
+            const usage_percent = Math.min(
+              100,
+              Math.round((100 * estimated_tokens) / prev.context_limit)
+            );
+            return {
+              ...prev,
+              reasoning_tokens,
+              estimated_tokens,
+              remaining_tokens,
+              usage_percent,
+            };
+          });
+        }
       );
       setSession(result.session);
       await loadSessions();
