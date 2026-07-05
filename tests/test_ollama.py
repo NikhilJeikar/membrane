@@ -1,7 +1,7 @@
 """Tests for Ollama client helpers."""
 
 from membrane.config import LLMConfig
-from membrane.llm.ollama import OllamaClient, OllamaModelNotFoundError
+from membrane.llm.ollama import ChatStreamChunk, OllamaClient, OllamaModelNotFoundError
 
 
 def test_has_model_matches_tag_variants(monkeypatch):
@@ -47,4 +47,49 @@ def test_chat_stream_yields_chunks(monkeypatch):
 
     client = OllamaClient(LLMConfig())
     chunks = list(client.chat_stream([{"role": "user", "content": "hi"}]))
-    assert chunks == ["Hel", "lo"]
+    assert chunks == [
+        ChatStreamChunk("content", "Hel"),
+        ChatStreamChunk("content", "lo"),
+    ]
+
+
+def test_chat_stream_yields_thinking_chunks(monkeypatch):
+    import json
+
+    import httpx
+
+    ndjson = "\n".join(
+        [
+            json.dumps({"message": {"thinking": "Let me "}, "done": False}),
+            json.dumps({"message": {"thinking": "see."}, "done": False}),
+            json.dumps({"message": {"content": "4"}, "done": True}),
+        ]
+    )
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, text=ndjson))
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda timeout=None: real_client(transport=transport, timeout=timeout),
+    )
+
+    client = OllamaClient(LLMConfig(thinking_enabled=True))
+    chunks = list(client.chat_stream([{"role": "user", "content": "2+2?"}]))
+    assert [c.kind for c in chunks] == ["thinking", "thinking", "content"]
+    assert "".join(c.text for c in chunks if c.kind == "thinking") == "Let me see."
+    assert chunks[-1].text == "4"
+
+    captured: dict = {}
+
+    def capture_request(request):
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(200, text=ndjson)
+
+    transport2 = httpx.MockTransport(capture_request)
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda timeout=None: real_client(transport=transport2, timeout=timeout),
+    )
+    list(client.chat_stream([{"role": "user", "content": "hi"}]))
+    assert captured["body"].get("think") is True

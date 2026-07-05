@@ -235,6 +235,12 @@ export function ModelAdvancedPanel({ persona, onChange, onSave, saving }: Props)
         value={String(persona.llm.context_window)}
         onChange={(e) => patchLlm({ context_window: num(e.target.value, 8192) })}
       />
+      <Switch
+        label="Chain-of-thought (thinking models)"
+        helper="Show reasoning traces from Ollama thinking models (DeepSeek R1, Qwen3, …). Requires a compatible model."
+        checked={Boolean(persona.llm.thinking_enabled)}
+        onCheckedChange={(thinking_enabled) => patchLlm({ thinking_enabled })}
+      />
       <Input
         label="Parallel ingest/extract workers"
         helper="0 = CPU cores - 1"

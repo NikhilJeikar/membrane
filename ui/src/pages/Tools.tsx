@@ -285,6 +285,7 @@ export default function ToolsPage() {
         num_threads: persona.llm.num_threads,
         parallel_requests: persona.llm.parallel_requests,
         context_window: persona.llm.context_window,
+        thinking_enabled: persona.llm.thinking_enabled,
       },
       performance: { workers: Number(persona.performance?.workers ?? 0) },
       memory: persona.memory,

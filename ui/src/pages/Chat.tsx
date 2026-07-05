@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Bot,
   Brain,
@@ -16,7 +17,7 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
-import { api, ChatSession, ChatSessionSummary, ChatTurn, ContextUsage, MemoryContext, ShellEvent, TurnReferences, WebSearchEvent } from "../api";
+import { api, ChatSession, ChatSessionSummary, ChatTurn, ContextUsage, MemoryContext, Proposal, ShellEvent, TurnReferences, WebSearchEvent } from "../api";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { Button } from "../components/ui/Button";
 import { Dialog } from "../components/ui/Dialog";
@@ -297,6 +298,49 @@ function ThinkingDots() {
   );
 }
 
+function ThinkingBlock({
+  thinking,
+  streaming = false,
+}: {
+  thinking?: string;
+  streaming?: boolean;
+}) {
+  const [open, setOpen] = useState(streaming);
+
+  useEffect(() => {
+    if (streaming) setOpen(true);
+  }, [streaming]);
+
+  if (!thinking) return null;
+
+  return (
+    <div className="rounded-lg border border-violet-500/20 bg-violet-950/20">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-ink-secondary transition hover:bg-white/5"
+      >
+        <span className="inline-flex items-center gap-1.5 font-medium uppercase tracking-wide text-violet-300/90">
+          {streaming ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Brain className="h-3.5 w-3.5" />
+          )}
+          Reasoning
+          {streaming && <span className="normal-case tracking-normal text-ink-muted">· live</span>}
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition", open && "rotate-180")} />
+      </button>
+      {open && (
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-t border-violet-500/15 px-3 py-2.5 font-mono text-[12px] leading-5 text-ink-secondary">
+          {thinking}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function memoryItemCount(ctx?: MemoryContext): number {
   if (!ctx) return 0;
   return (
@@ -531,17 +575,21 @@ function ReferencesPanel({
 function MessageRow({
   role,
   content,
+  thinking,
   isThinking = false,
   references,
   search,
   shell,
+  thinkingStreaming = false,
 }: {
   role: "user" | "assistant";
   content?: string;
+  thinking?: string;
   isThinking?: boolean;
   references?: TurnReferences | null;
   search?: WebSearchEvent | null;
   shell?: ShellEvent | null;
+  thinkingStreaming?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const isUser = role === "user";
@@ -600,6 +648,9 @@ function MessageRow({
             )}
           </div>
           {!isUser && <ReferencesPanel refs={references} search={search} shell={shell} />}
+          {!isUser && (thinking || thinkingStreaming) && (
+            <ThinkingBlock thinking={thinking} streaming={thinkingStreaming} />
+          )}
           {isThinking ? (
             <ThinkingDots />
           ) : content ? (
@@ -619,6 +670,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [streamText, setStreamText] = useState<string | null>(null);
+  const [streamThinking, setStreamThinking] = useState<string | null>(null);
   const [ollamaOk, setOllamaOk] = useState(true);
   const [modelReady, setModelReady] = useState(true);
   const [model, setModel] = useState("");
@@ -631,6 +683,7 @@ export default function ChatPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const toast = useToast();
+  const navigate = useNavigate();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -727,7 +780,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [session?.turns.length, sending, streamText]);
+  }, [session?.turns.length, sending, streamText, streamThinking]);
 
   useEffect(() => {
     if (!sending) inputRef.current?.focus();
@@ -792,6 +845,35 @@ export default function ChatPage() {
     }
   }
 
+  function showMemorySuggestions(suggestions: Proposal[]) {
+    for (const proposal of suggestions) {
+      const label = proposal.category === "profile" ? "Profile" : "Preference";
+      toast(
+        "info",
+        `Save ${label.toLowerCase()}?`,
+        proposal.summary,
+        [
+          {
+            label: "Save",
+            variant: "primary",
+            onClick: async () => {
+              try {
+                await api.approve(proposal.id);
+                toast("success", `${label} saved`, proposal.summary);
+              } catch (e) {
+                toast("error", "Failed to save", String(e));
+              }
+            },
+          },
+          {
+            label: "Review",
+            onClick: () => navigate("/review"),
+          },
+        ]
+      );
+    }
+  }
+
   async function sendMessage(textOverride?: string) {
     const text = (textOverride ?? input).trim();
     if (!text || !activeId || sending) return;
@@ -806,6 +888,7 @@ export default function ChatPage() {
 
     setSending(true);
     setStreamText(null);
+    setStreamThinking(null);
     setSearchEvent(null);
     setShellEvent(null);
     setContextEvent(null);
@@ -825,10 +908,14 @@ export default function ChatPage() {
         (event) => setSearchEvent(event),
         (context) => setContextEvent(context),
         (usage) => setContextUsage(usage),
-        (event) => setShellEvent(event)
+        (event) => setShellEvent(event),
+        (delta) => setStreamThinking((prev) => (prev ?? "") + delta)
       );
       setSession(result.session);
       await loadSessions();
+      if (result.memorySuggestions.length > 0) {
+        showMemorySuggestions(result.memorySuggestions);
+      }
     } catch (e) {
       if (!textOverride) setInput(text);
       toast("error", String(e));
@@ -836,6 +923,7 @@ export default function ChatPage() {
     } finally {
       setSending(false);
       setStreamText(null);
+      setStreamThinking(null);
       setSearchEvent(null);
       setShellEvent(null);
       setContextEvent(null);
@@ -1070,6 +1158,7 @@ export default function ChatPage() {
                   key={`${turn.role}-${idx}`}
                   role={turn.role === "user" ? "user" : "assistant"}
                   content={turn.content}
+                  thinking={turn.role === "assistant" ? turn.metadata?.thinking : undefined}
                   references={turn.role === "assistant" ? turn.metadata : undefined}
                 />
               ))}
@@ -1077,7 +1166,9 @@ export default function ChatPage() {
                 <MessageRow
                   role="assistant"
                   content={streamText ?? undefined}
-                  isThinking={streamText === null}
+                  thinking={streamThinking ?? undefined}
+                  thinkingStreaming={Boolean(streamThinking) && !streamText}
+                  isThinking={!streamText && !streamThinking}
                   references={{
                     memory_context: contextEvent ?? undefined,
                     web_search: searchEvent?.query

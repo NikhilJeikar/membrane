@@ -11,15 +11,27 @@ import { cn } from "../../lib/utils";
 
 export type ToastKind = "success" | "error" | "info";
 
+export type ToastAction = {
+  label: string;
+  variant?: "primary" | "secondary";
+  onClick: () => void | Promise<void>;
+};
+
 type ToastItem = {
   id: number;
   kind: ToastKind;
   title: string;
   subtitle?: string;
+  actions?: ToastAction[];
 };
 
 type ToastContextValue = {
-  toast: (kind: ToastKind, title: string, subtitle?: string) => void;
+  toast: (
+    kind: ToastKind,
+    title: string,
+    subtitle?: string,
+    actions?: ToastAction[]
+  ) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -48,10 +60,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (kind: ToastKind, title: string, subtitle?: string) => {
+    (kind: ToastKind, title: string, subtitle?: string, actions?: ToastAction[]) => {
       const id = nextId.current++;
-      setItems((prev) => [...prev, { id, kind, title, subtitle }]);
-      setTimeout(() => dismiss(id), 5000);
+      setItems((prev) => [...prev, { id, kind, title, subtitle, actions }]);
+      const duration = actions?.length ? 12000 : 5000;
+      setTimeout(() => dismiss(id), duration);
     },
     [dismiss]
   );
@@ -64,27 +77,51 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={item.id}
             className={cn(
-              "pointer-events-auto flex items-start gap-3 rounded-lg border bg-surface-elevated px-4 py-3 shadow-overlay animate-fadeIn",
+              "pointer-events-auto rounded-lg border bg-surface-elevated shadow-overlay animate-fadeIn",
               kindStyles[item.kind].border
             )}
           >
-            {kindStyles[item.kind].icon}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-ink-primary">{item.title}</p>
-              {item.subtitle && (
-                <p className="mt-0.5 break-words text-xs leading-5 text-ink-secondary">
-                  {item.subtitle}
-                </p>
-              )}
+            <div className="flex items-start gap-3 px-4 py-3">
+              {kindStyles[item.kind].icon}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink-primary">{item.title}</p>
+                {item.subtitle && (
+                  <p className="mt-0.5 break-words text-xs leading-5 text-ink-secondary">
+                    {item.subtitle}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => dismiss(item.id)}
+                className="rounded p-0.5 text-ink-muted transition hover:text-ink-primary"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <button
-              type="button"
-              aria-label="Dismiss"
-              onClick={() => dismiss(item.id)}
-              className="rounded p-0.5 text-ink-muted transition hover:text-ink-primary"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            {item.actions && item.actions.length > 0 && (
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-white/10 px-3 py-2">
+                {item.actions.map((action) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={() => {
+                      void Promise.resolve(action.onClick());
+                      dismiss(item.id);
+                    }}
+                    className={cn(
+                      "rounded px-2.5 py-1 text-xs font-medium transition",
+                      action.variant === "primary"
+                        ? "bg-accent text-white hover:bg-accent-hover"
+                        : "text-ink-secondary hover:bg-white/10 hover:text-ink-primary"
+                    )}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

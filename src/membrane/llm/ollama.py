@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Iterator
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import httpx
 
@@ -19,6 +20,12 @@ class OllamaError(RuntimeError):
 
 class OllamaModelNotFoundError(OllamaError):
     pass
+
+
+@dataclass(frozen=True)
+class ChatStreamChunk:
+    kind: Literal["thinking", "content"]
+    text: str
 
 
 class OllamaClient:
@@ -119,14 +126,19 @@ class OllamaClient:
         messages: list[dict[str, str]],
         model: str | None = None,
         temperature: float | None = None,
-    ) -> Iterator[str]:
-        """Yield response content chunks as they arrive from Ollama."""
+        *,
+        think: bool | None = None,
+    ) -> Iterator[ChatStreamChunk]:
+        """Yield thinking and content chunks as they arrive from Ollama."""
+        use_think = self.config.thinking_enabled if think is None else think
         payload: dict[str, Any] = {
             "model": model or self.config.model,
             "messages": messages,
             "stream": True,
             "options": self._ollama_options(temperature),
         }
+        if use_think:
+            payload["think"] = True
         model_name = payload["model"]
         last_error: Exception | None = None
         attempts = self.config.max_retries + 1
@@ -148,10 +160,15 @@ class OllamaClient:
                             data = json.loads(line)
                             if data.get("error"):
                                 raise OllamaError(data["error"])
-                            chunk = data.get("message", {}).get("content", "")
-                            if chunk:
+                            message = data.get("message", {})
+                            thinking_chunk = message.get("thinking", "")
+                            content_chunk = message.get("content", "")
+                            if thinking_chunk:
                                 started = True
-                                yield chunk
+                                yield ChatStreamChunk("thinking", thinking_chunk)
+                            if content_chunk:
+                                started = True
+                                yield ChatStreamChunk("content", content_chunk)
                             if data.get("done"):
                                 return
                 return

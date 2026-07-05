@@ -65,6 +65,7 @@ from membrane.integrations.oauth import finish_oauth, oauth_providers, start_oau
 from membrane.ingest.lifecycle import parse_all_server_sources, parse_server_source
 from membrane.ingest.server_models import SERVER_SOURCES
 from membrane.learning.chat_log import ChatLogger
+from membrane.learning.chat_memory import suggest_memory_from_turn
 from membrane.learning.export import TrainingExporter
 from membrane.learning.job import FineTuneBusyError, is_fine_tune_running, start_fine_tune_job
 from membrane.learning.trainer import (
@@ -118,6 +119,7 @@ class PersonaLLMUpdate(BaseModel):
     num_threads: int | None = None
     parallel_requests: int | None = None
     context_window: int | None = None
+    thinking_enabled: bool | None = None
 
 
 class PersonaPerformanceUpdate(BaseModel):
@@ -762,10 +764,15 @@ def create_app(ui_dist: Path | None = None) -> FastAPI:
                 ) + "\n"
 
             parts: list[str] = []
+            thinking_parts: list[str] = []
             try:
                 for chunk in client.chat_stream(messages):
-                    parts.append(chunk)
-                    yield json.dumps({"delta": chunk}) + "\n"
+                    if chunk.kind == "thinking":
+                        thinking_parts.append(chunk.text)
+                        yield json.dumps({"thinking_delta": chunk.text}) + "\n"
+                    else:
+                        parts.append(chunk.text)
+                        yield json.dumps({"delta": chunk.text}) + "\n"
             except OllamaError as exc:
                 yield json.dumps({"error": str(exc)}) + "\n"
                 return
@@ -776,9 +783,28 @@ def create_app(ui_dist: Path | None = None) -> FastAPI:
                 turn_meta["web_search"] = web_search_ref
             if shell_ref:
                 turn_meta["shell"] = shell_ref
+            if thinking_parts:
+                turn_meta["thinking"] = "".join(thinking_parts)
             final = logger.record_turn(session_id, "assistant", reply, turn_metadata=turn_meta)
+
+            memory_suggestions: list[dict] = []
+            if persona.memory.confirm_before_save:
+                try:
+                    mem = store()
+                    proposals = suggest_memory_from_turn(mem, persona, content, reply)
+                    for proposal in proposals:
+                        mem.propose(proposal)
+                        memory_suggestions.append(proposal_to_dict(proposal, mem))
+                except Exception:
+                    pass
+
             yield json.dumps(
-                {"done": True, "reply": reply, "session": final.model_dump(mode="json")}
+                {
+                    "done": True,
+                    "reply": reply,
+                    "session": final.model_dump(mode="json"),
+                    "memory_suggestions": memory_suggestions,
+                }
             ) + "\n"
 
         return StreamingResponse(event_stream(), media_type="application/x-ndjson")

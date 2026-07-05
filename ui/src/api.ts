@@ -69,6 +69,7 @@ export type PersonaLLM = {
   num_threads: number;
   parallel_requests: number;
   context_window: number;
+  thinking_enabled: boolean;
 };
 
 export type PersonaServer = {
@@ -374,6 +375,7 @@ export type TurnReferences = {
   shell?: {
     commands: ShellCommandResult[];
   };
+  thinking?: string;
 };
 
 export type ChatSession = {
@@ -420,12 +422,13 @@ export type ShellEvent = {
 
 type ChatStreamLine =
   | { delta: string }
+  | { thinking_delta: string }
   | { error: string }
   | { context: MemoryContext }
   | { context_usage: ContextUsage }
   | { web_search: WebSearchEvent }
   | { shell: ShellEvent }
-  | { done: true; reply: string; session: ChatSession };
+  | { done: true; reply: string; session: ChatSession; memory_suggestions?: Proposal[] };
 
 async function streamChatMessage(
   id: string,
@@ -434,8 +437,9 @@ async function streamChatMessage(
   onSearch?: (event: WebSearchEvent) => void,
   onContext?: (context: MemoryContext) => void,
   onContextUsage?: (usage: ContextUsage) => void,
-  onShell?: (event: ShellEvent) => void
-): Promise<{ session: ChatSession; reply: string }> {
+  onShell?: (event: ShellEvent) => void,
+  onThinkingDelta?: (delta: string) => void
+): Promise<{ session: ChatSession; reply: string; memorySuggestions: Proposal[] }> {
   const res = await fetch(`${BASE}/api/chat/sessions/${id}/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -455,7 +459,7 @@ async function streamChatMessage(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let final: { session: ChatSession; reply: string } | null = null;
+  let final: { session: ChatSession; reply: string; memorySuggestions: Proposal[] } | null = null;
 
   const handleLine = (line: string) => {
     if (!line.trim()) return;
@@ -469,8 +473,14 @@ async function streamChatMessage(
       onContext?.(data.context);
     } else if ("context_usage" in data) {
       onContextUsage?.(data.context_usage);
+    } else if ("thinking_delta" in data) {
+      onThinkingDelta?.(data.thinking_delta);
     } else if ("done" in data) {
-      final = { session: data.session, reply: data.reply };
+      final = {
+        session: data.session,
+        reply: data.reply,
+        memorySuggestions: data.memory_suggestions ?? [],
+      };
     } else {
       onDelta(data.delta);
     }
