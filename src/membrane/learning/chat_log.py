@@ -29,20 +29,33 @@ class ChatLogger:
     def list_sessions(self) -> list[Path]:
         return sorted(self.chats_dir.glob("*.json"))
 
+    def delete_session(self, session_id: str) -> bool:
+        path = self._session_path(session_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def record_turn(
         self,
         session_id: str,
         role: str,
         content: str,
-        metadata: dict | None = None,
+        *,
+        turn_metadata: dict | None = None,
     ) -> ChatSession:
         path = self._session_path(session_id)
         if path.exists():
             session = self.load_session(session_id)
         else:
-            session = ChatSession(id=session_id, metadata=metadata or {})
+            session = ChatSession(id=session_id)
         session.turns.append(
-            ChatTurn(role=role, content=content, timestamp=datetime.now().astimezone())  # type: ignore[arg-type]
+            ChatTurn(
+                role=role,  # type: ignore[arg-type]
+                content=content,
+                timestamp=datetime.now().astimezone(),
+                metadata=turn_metadata or {},
+            )
         )
         self.save_session(session)
         return session

@@ -35,6 +35,7 @@ class MemorySource(StrEnum):
     EMAIL = "email"
     CALENDAR = "calendar"
     SEARCH = "search"
+    BOOKS = "books"
 
 
 AGENT_PROVIDERS = frozenset({"cursor", "claude", "openai", "continue", "codex", "windsurf"})
@@ -117,6 +118,7 @@ class ChatTurn(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
     timestamp: datetime | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatSession(BaseModel):

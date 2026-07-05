@@ -1,24 +1,38 @@
-import { Column, Grid, InlineLoading, Tag, Tile } from "@carbon/react";
 import PageHeader from "../components/PageHeader";
+import { Card, SectionTitle } from "../components/ui/Card";
+import { Spinner } from "../components/ui/Spinner";
+import { Tag, TagTone } from "../components/ui/Tag";
 import { Status } from "../api";
 
 type Props = { status: Status | null };
 
-type StatGroup = {
-  title: string;
-  items: { label: string; value: string | number; hint?: string; tag?: "green" | "red" | "gray" }[];
+type StatItem = {
+  label: string;
+  value: string | number;
+  hint?: string;
+  tag?: { tone: TagTone; label: string };
 };
+
+type StatGroup = { title: string; items: StatItem[] };
 
 export default function DashboardPage({ status }: Props) {
   if (!status) {
-    return <InlineLoading description="Loading status…" className="page-loading" />;
+    return <Spinner label="Loading status…" />;
   }
 
   const groups: StatGroup[] = [
     {
       title: "Memory",
       items: [
-        { label: "Pending review", value: status.pending_proposals, hint: "Needs approval", tag: status.pending_proposals > 0 ? "red" : "green" },
+        {
+          label: "Pending review",
+          value: status.pending_proposals,
+          hint: "Needs approval",
+          tag:
+            status.pending_proposals > 0
+              ? { tone: "red", label: "Review needed" }
+              : { tone: "green", label: "Clear" },
+        },
         { label: "Profile facts", value: status.profile_count },
         { label: "Preferences", value: status.preference_count },
         { label: "Episodes", value: status.episode_count },
@@ -36,9 +50,15 @@ export default function DashboardPage({ status }: Props) {
     {
       title: "System",
       items: [
-        { label: "Ollama", value: status.ollama_ok ? "Online" : "Offline", tag: status.ollama_ok ? "green" : "red" },
+        {
+          label: "Ollama",
+          value: status.ollama_ok ? "Online" : "Offline",
+          tag: status.ollama_ok
+            ? { tone: "green", label: "Connected" }
+            : { tone: "red", label: "Start Ollama" },
+        },
         { label: "Model", value: status.ollama_model },
-        { label: "Training phase", value: status.phase, tag: "gray" },
+        { label: "Training phase", value: status.phase },
         { label: "Approved archive", value: status.approved_archive },
       ],
     },
@@ -49,39 +69,31 @@ export default function DashboardPage({ status }: Props) {
       <PageHeader
         title="Dashboard"
         description="Local control plane for memory review, ingest pipelines, and training policies. All data stays on your machine."
-        breadcrumbs={[{ label: "membrane", href: "/" }, { label: "Dashboard" }]}
       />
 
-      {groups.map((group) => (
-        <section key={group.title}>
-          <h2 className="section-title">{group.title}</h2>
-          <Grid fullWidth narrow>
-            {group.items.map((item) => (
-              <Column key={item.label} sm={4} md={4} lg={4} xlg={4}>
-                <Tile className="stat-tile">
+      <div className="space-y-8">
+        {groups.map((group) => (
+          <section key={group.title}>
+            <SectionTitle className="mb-3">{group.title}</SectionTitle>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {group.items.map((item) => (
+                <Card key={item.label} className="flex min-h-[7rem] flex-col justify-between">
                   <div>
-                    <p className="stat-tile__label">{item.label}</p>
-                    <p className="stat-tile__value">{item.value}</p>
+                    <p className="text-[13px] text-ink-secondary">{item.label}</p>
+                    <p className="mt-1.5 truncate text-2xl font-light text-ink-primary" title={String(item.value)}>
+                      {item.value}
+                    </p>
                   </div>
-                  <div>
-                    {item.tag && item.label === "Pending review" && (
-                      <Tag type={item.tag} size="sm">
-                        {status.pending_proposals > 0 ? "Review needed" : "Clear"}
-                      </Tag>
-                    )}
-                    {item.tag && item.label === "Ollama" && (
-                      <Tag type={item.tag} size="sm">
-                        {status.ollama_ok ? "Connected" : "Start Ollama"}
-                      </Tag>
-                    )}
-                    {item.hint && <span className="stat-tile__hint">{item.hint}</span>}
+                  <div className="mt-3 flex items-center gap-2">
+                    {item.tag && <Tag tone={item.tag.tone}>{item.tag.label}</Tag>}
+                    {item.hint && <span className="text-xs text-ink-muted">{item.hint}</span>}
                   </div>
-                </Tile>
-              </Column>
-            ))}
-          </Grid>
-        </section>
-      ))}
+                </Card>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
     </>
   );
 }

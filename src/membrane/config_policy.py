@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-import yaml
 from pydantic import BaseModel, Field
-
-from membrane.config import get_settings
 
 
 class SourcePolicy(BaseModel):
@@ -25,6 +21,8 @@ class SourcePolicy(BaseModel):
 
 class NightlyPolicy(BaseModel):
     enabled: bool = False
+    # Local time of day (24h HH:MM) at which the training job should run.
+    time: str = Field(default="02:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     since_hours: int = Field(default=24, ge=1, le=168)
 
 
@@ -50,20 +48,66 @@ class TrainingPolicy(BaseModel):
         )
 
 
-def policy_path() -> Path:
-    settings = get_settings()
-    path = settings.config_dir / "training_policy.yaml"
-    example = settings.config_dir / "training_policy.example.yaml"
-    if not path.exists() and example.exists():
-        path.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
-    return path
+AUTO_APPROVE_FIELDS = (
+    "auto_approve_episodes",
+    "auto_approve_profile",
+    "auto_approve_preference",
+)
+
+SERVER_SOURCE_FIELDS = (
+    "ingest",
+    "extract",
+    "train",
+    "redact",
+    *AUTO_APPROVE_FIELDS,
+)
+
+AGENT_SOURCE_FIELDS = (
+    "ingest",
+    "extract",
+    "train",
+    "redact",
+    "user_only",
+    *AUTO_APPROVE_FIELDS,
+)
+
+SOURCE_CAPABILITIES: dict[str, tuple[str, ...]] = {
+    "email": SERVER_SOURCE_FIELDS,
+    "calendar": SERVER_SOURCE_FIELDS,
+    "search": SERVER_SOURCE_FIELDS,
+    "cursor": AGENT_SOURCE_FIELDS,
+    "claude": AGENT_SOURCE_FIELDS,
+    "openai": AGENT_SOURCE_FIELDS,
+    "whatsapp": (
+        "ingest",
+        "extract",
+        "train",
+        "redact",
+        "self_only",
+        *AUTO_APPROVE_FIELDS,
+    ),
+    "wiki": ("ingest", "extract", "train"),
+}
+
+SOURCE_DESCRIPTIONS: dict[str, str] = {
+    "email": "Email ingested via the local server collector.",
+    "calendar": "Calendar events from the local server.",
+    "search": "Search history from the local server.",
+    "cursor": "Cursor agent session transcripts.",
+    "claude": "Claude agent session transcripts.",
+    "openai": "OpenAI/Codex agent session transcripts.",
+    "whatsapp": "WhatsApp chat exports.",
+    "wiki": "Wikipedia corpus for summarization datasets (no PII redaction).",
+}
 
 
 def load_training_policy() -> TrainingPolicy:
-    path = policy_path()
-    if not path.exists():
+    from membrane.config_store import NAMESPACE_TRAINING_POLICY, ensure_config_db, load_config_raw
+
+    ensure_config_db()
+    raw = load_config_raw(NAMESPACE_TRAINING_POLICY)
+    if raw is None:
         return TrainingPolicy.default()
-    raw: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     sources_raw = raw.get("sources") or {}
     sources = {name: SourcePolicy.model_validate(cfg) for name, cfg in sources_raw.items()}
     nightly = NightlyPolicy.model_validate(raw.get("nightly") or {})
@@ -71,11 +115,11 @@ def load_training_policy() -> TrainingPolicy:
 
 
 def save_training_policy(policy: TrainingPolicy) -> Path:
-    path = policy_path()
+    from membrane.config_store import NAMESPACE_TRAINING_POLICY, save_config_raw
+
     payload = {
         "phase": policy.phase,
         "nightly": policy.nightly.model_dump(),
         "sources": {name: cfg.model_dump() for name, cfg in policy.sources.items()},
     }
-    path.write_text(yaml.safe_dump(payload, sort_keys=False, default_flow_style=False), encoding="utf-8")
-    return path
+    return save_config_raw(NAMESPACE_TRAINING_POLICY, payload)

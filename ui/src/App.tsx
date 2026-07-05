@@ -1,10 +1,10 @@
-import { Theme } from "@carbon/react";
 import AppShell from "./components/AppShell";
+import { ToastProvider } from "./components/ui/Toast";
 
 export default function App() {
   return (
-    <Theme theme="g100">
+    <ToastProvider>
       <AppShell />
-    </Theme>
+    </ToastProvider>
   );
 }

@@ -23,10 +23,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Copy example memory and persona, then edit for yourself
+# Copy example memory, then initialize config database
 cp memory/examples/profile.json memory/profile.json
 cp memory/examples/preferences.json memory/preferences.json
-cp config/persona.example.yaml config/persona.yaml
+membrane init
 
 # Ingest a WhatsApp export (without media)
 membrane ingest whatsapp data/whatsapp/raw/my-chat.txt --self-name "Nikhil"
@@ -101,7 +101,7 @@ membrane export summarization --lang en
 
 ```
 membrane/
-├── config/persona.yaml       # Controllable behavior knobs
+├── config/membrane.db        # SQLite config (persona, policy, integrations, credentials)
 ├── memory/                   # Live memory store (gitignored)
 ├── memory/examples/          # Safe templates committed to git
 ├── data/
@@ -127,7 +127,7 @@ Extraction uses Ollama by default (`qwen2.5:7b`). Start Ollama and pull the mode
 ollama pull qwen2.5:7b
 ```
 
-Configure in `config/persona.yaml` under `llm:`.
+Configure in the UI (Tools → Model) or via `membrane init` defaults in `config/membrane.db`.
 
 ## Privacy
 

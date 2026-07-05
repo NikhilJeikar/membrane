@@ -11,7 +11,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from membrane.cli_config import config_app
 from membrane.config import ensure_data_layout, get_settings, load_persona
+from membrane.config_integrations import load_integrations
 from membrane.inference.context import ContextBuilder
 from membrane.ingest.agents import (
     agent_sessions_to_chat_sessions,
@@ -32,8 +34,11 @@ from membrane.ingest.wikipedia import (
 )
 from membrane.learning.chat_log import ChatLogger
 from membrane.learning.export import TrainingExporter
+from membrane.learning.job import FineTuneBusyError, run_fine_tune_sync
+from membrane.learning.trainer import FineTuneRunner, training_deps_available, training_requirements_hint
 from membrane.llm.ollama import OllamaClient
-from membrane.memory.models import MemoryCategory, ProposalStatus
+from membrane.memory.books import BookEntry, BooksStore, sync_book_episode
+from membrane.memory.models import MemoryCategory, MemorySource, PreferenceEntry, ProfileEntry, ProposalStatus, ChatTurn, new_id
 from membrane.memory.review import run_interactive_review
 from membrane.memory.store import MemoryStore
 from membrane.shadow.extractor import ShadowExtractor
@@ -53,6 +58,7 @@ memory_app = typer.Typer(help="Manage memory store and proposals.")
 context_app = typer.Typer(help="Build inference context.")
 chat_app = typer.Typer(help="Log PA conversations for learning.")
 export_app = typer.Typer(help="Export training datasets.")
+train_app = typer.Typer(help="Fine-tune models end-to-end.")
 dataset_app = typer.Typer(help="Prepare task-specific training datasets.")
 init_app = typer.Typer(help="Initialize project layout and memory.")
 status_app = typer.Typer(help="Check environment and data status.")
@@ -66,12 +72,17 @@ app.add_typer(memory_app, name="memory")
 app.add_typer(context_app, name="context")
 app.add_typer(chat_app, name="chat")
 app.add_typer(export_app, name="export")
+app.add_typer(train_app, name="train")
 app.add_typer(dataset_app, name="dataset")
 app.add_typer(init_app, name="init")
 app.add_typer(status_app, name="status")
 app.add_typer(tracking_app, name="tracking")
 app.add_typer(server_app, name="server")
 app.add_typer(ui_app, name="ui")
+app.add_typer(config_app, name="config")
+
+books_app = typer.Typer(help="Reading list (mirrors Books UI).")
+app.add_typer(books_app, name="books")
 
 
 def _settings():
@@ -147,21 +158,17 @@ def _add_extract_stats(
 
 
 @init_app.callback(invoke_without_command=True)
-def init_project(
-    copy_persona: Annotated[bool, typer.Option(help="Copy persona.example.yaml to persona.yaml")] = True,
-) -> None:
-    """Create directories and seed example memory files."""
+def init_project() -> None:
+    """Create directories, seed config database, and initialize example memory files."""
     settings = _settings()
     ensure_data_layout(settings.root)
     store = _store()
     store.init_from_examples()
 
-    example_persona = settings.config_dir / "persona.example.yaml"
-    target_persona = settings.persona_path
-    if copy_persona and example_persona.exists() and not target_persona.exists():
-        target_persona.write_text(example_persona.read_text(encoding="utf-8"), encoding="utf-8")
-        console.print(f"[green]Created[/green] {target_persona}")
-    console.print("[green]Project initialized.[/green]")
+    from membrane.config_store import config_db_path, ensure_config_db
+
+    db_path = ensure_config_db()
+    console.print(f"[green]Project initialized.[/green] Config database: {db_path}")
 
 
 @status_app.callback(invoke_without_command=True)
@@ -212,8 +219,8 @@ def status_check() -> None:
         )
     else:
         console.print(
-            "\n[cyan]CPU tuning:[/cyan] set in config/persona.yaml → "
-            "performance.workers, llm.num_threads, llm.parallel_requests"
+            "\n[cyan]CPU tuning:[/cyan] set in the UI (Tools → Model) or via "
+            "performance.workers, llm.num_threads, llm.parallel_requests in config DB"
         )
 
 
@@ -290,7 +297,7 @@ def tracking_mark_extracted(
 
 @server_app.command("run")
 def server_run(
-    host: Annotated[str | None, typer.Option(help="Bind host (default from persona.yaml)")] = None,
+    host: Annotated[str | None, typer.Option(help="Bind host (default from config DB)")] = None,
     port: Annotated[int, typer.Option(help="Bind port (0 = persona default)")] = 0,
     parse_interval: Annotated[
         int,
@@ -590,7 +597,7 @@ def extract_run(
     no_progress: Annotated[bool, typer.Option("--no-progress", help="Disable progress bar")] = False,
     timeout: Annotated[
         float,
-        typer.Option(help="Ollama read timeout in seconds (overrides persona.yaml)"),
+        typer.Option(help="Ollama read timeout in seconds (overrides config DB)"),
     ] = 0,
     force: Annotated[
         bool,
@@ -647,7 +654,8 @@ def extract_run(
         )
         if client.parallel_requests() > 1:
             console.print(
-                "[yellow]Tip:[/yellow] On CPU-only, set llm.parallel_requests: 1 in persona.yaml "
+                "[yellow]Tip:[/yellow] On CPU-only, set llm.parallel_requests: 1 in the UI "
+                "or config database"
                 "to avoid timeouts."
             )
 
@@ -761,7 +769,7 @@ def extract_run(
     if total_proposals == 0 and extractor and extractor.failed_chunks:
         console.print(
             f"[red]All {extractor.failed_chunks} chunk(s) failed.[/red] "
-            "Try: `--timeout 900` or `llm.parallel_requests: 1` in persona.yaml"
+            "Try: `--timeout 900` or set llm.parallel_requests: 1 in the config database"
         )
         for err in extractor.last_errors[:3]:
             console.print(f"  [dim]{err}[/dim]")
@@ -933,6 +941,116 @@ def memory_clear_source(
     console.print(msg)
 
 
+@memory_app.command("profile-set")
+def memory_profile_set(
+    key: Annotated[str, typer.Argument(help="Profile key")],
+    value: Annotated[str, typer.Argument(help="Profile value")],
+    confidence: Annotated[float, typer.Option(help="Confidence 0–1")] = 0.8,
+) -> None:
+    """Add or update a profile fact (mirrors Memory UI)."""
+    mem = _store()
+    existing = next((e for e in mem.load_profile() if e.key == key), None)
+    entry = ProfileEntry(
+        id=existing.id if existing else new_id(),
+        key=key.strip(),
+        value=value.strip(),
+        confidence=confidence,
+        source=MemorySource.MANUAL,
+    )
+    mem.upsert_profile(entry)
+    console.print(f"[green]Saved profile[/green] {entry.key} = {entry.value}")
+
+
+@memory_app.command("profile-delete")
+def memory_profile_delete(
+    key: Annotated[str, typer.Argument(help="Profile key to delete")],
+) -> None:
+    """Delete a profile entry."""
+    if _store().delete_profile(key):
+        console.print(f"[green]Deleted profile[/green] {key}")
+    else:
+        raise typer.BadParameter(f"profile key not found: {key}")
+
+
+@memory_app.command("preference-set")
+def memory_preference_set(
+    key: Annotated[str, typer.Argument(help="Preference key")],
+    value: Annotated[str, typer.Argument(help="Preference value")],
+    strength: Annotated[float, typer.Option(help="Strength 0–1")] = 0.7,
+) -> None:
+    """Add or update a preference (mirrors Memory UI)."""
+    mem = _store()
+    existing = next((e for e in mem.load_preferences() if e.key == key), None)
+    entry = PreferenceEntry(
+        id=existing.id if existing else new_id(),
+        key=key.strip(),
+        value=value.strip(),
+        strength=strength,
+        source=MemorySource.MANUAL,
+    )
+    mem.upsert_preference(entry)
+    console.print(f"[green]Saved preference[/green] {entry.key} = {entry.value}")
+
+
+@memory_app.command("preference-delete")
+def memory_preference_delete(
+    key: Annotated[str, typer.Argument(help="Preference key to delete")],
+) -> None:
+    """Delete a preference entry."""
+    if _store().delete_preference(key):
+        console.print(f"[green]Deleted preference[/green] {key}")
+    else:
+        raise typer.BadParameter(f"preference key not found: {key}")
+
+
+@books_app.command("list")
+def books_list() -> None:
+    """List books in the reading list."""
+    store = BooksStore(_settings().books_path)
+    books = store.load()
+    if not books:
+        console.print("[dim]No books yet.[/dim]")
+        return
+    table = Table(title="Books")
+    table.add_column("ID")
+    table.add_column("Title")
+    table.add_column("Author")
+    table.add_column("Rating")
+    for book in books:
+        table.add_row(book.id, book.title, book.author, str(book.rating or ""))
+    console.print(table)
+
+
+@books_app.command("add")
+def books_add(
+    title: Annotated[str, typer.Argument(help="Book title")],
+    author: Annotated[str, typer.Option(help="Author")] = "",
+    rating: Annotated[int | None, typer.Option(help="Rating 1–5")] = None,
+    notes: Annotated[str, typer.Option(help="Notes")] = "",
+    read_year: Annotated[int | None, typer.Option(help="Year finished")] = None,
+) -> None:
+    """Add a book (mirrors Books UI)."""
+    store = BooksStore(_settings().books_path)
+    memory = _store()
+    book = BookEntry(title=title, author=author, rating=rating, notes=notes, read_year=read_year)
+    book = sync_book_episode(memory, book)
+    store.upsert(book)
+    console.print(f"[green]Added book[/green] {book.title} ({book.id})")
+
+
+@books_app.command("delete")
+def books_delete(
+    book_id: Annotated[str, typer.Argument(help="Book id")],
+) -> None:
+    """Delete a book by id."""
+    settings = _settings()
+    store = BooksStore(settings.books_path)
+    book = store.delete(book_id)
+    if book is None:
+        raise typer.BadParameter(f"book not found: {book_id}")
+    console.print(f"[green]Deleted book[/green] {book.title}")
+
+
 @context_app.command("build")
 def context_build(
     message: Annotated[str, typer.Argument(help="User message to build context for")],
@@ -945,12 +1063,60 @@ def context_build(
 @context_app.command("chat")
 def context_chat(
     message: Annotated[str, typer.Argument(help="Message to send to local LLM")],
+    web_search: Annotated[
+        bool,
+        typer.Option(help="Use web search settings from config DB (overrides disabled)"),
+    ] = False,
+    shell: Annotated[
+        bool,
+        typer.Option(help="Use shell command settings from config DB (overrides disabled)"),
+    ] = False,
 ) -> None:
     """Chat with local Ollama using memory-injected context."""
     persona = _persona()
     client = OllamaClient(persona.llm)
     builder = ContextBuilder(_store(), persona)
     messages = builder.build_messages(message)
+    draft_turns = [ChatTurn(role="user", content=message)]
+
+    use_search = web_search or persona.web_search.enabled
+    if use_search:
+        from membrane.inference.websearch import (
+            SearchError,
+            decide_search,
+            enrich_search_with_pages,
+            format_results_block,
+            search_web,
+        )
+
+        query = decide_search(client, draft_turns)
+        if query:
+            console.print(f"[cyan]Searching[/cyan] {query}")
+            try:
+                results = search_web(query, persona.web_search)
+            except SearchError:
+                results = []
+            if results:
+                content = format_results_block(query, results)
+                if persona.firecrawl.enabled and persona.firecrawl.scrape_in_chat:
+                    page_block = enrich_search_with_pages(results, persona.firecrawl)
+                    if page_block:
+                        content = f"{content}\n\n{page_block}"
+                messages.insert(1, {"role": "system", "content": content})
+
+    use_shell = shell or persona.shell.enabled
+    if use_shell:
+        from membrane.inference.shell import format_shell_results_block, run_shell_loop
+
+        console.print("[cyan]Shell[/cyan] checking for commands to run")
+        shell_results = run_shell_loop(client, draft_turns, persona.shell)
+        if shell_results:
+            for result in shell_results:
+                console.print(f"[dim]$ {result.command}[/dim]")
+            shell_content = format_shell_results_block(shell_results, persona.shell)
+            if shell_content:
+                messages.insert(1, {"role": "system", "content": shell_content})
+
     if not client.health_check():
         raise typer.Exit("Ollama not reachable. Start with: ollama serve")
     reply = client.chat(messages)
@@ -987,7 +1153,7 @@ def chat_correct(
 
 @export_app.command("sft")
 def export_sft() -> None:
-    """Export SFT JSONL from chats + memory."""
+    """Export SFT JSONL from chats + memory + books."""
     settings = _settings()
     persona = _persona()
     store = _store()
@@ -997,9 +1163,18 @@ def export_sft() -> None:
         context_builder=builder,
         chats_dir=settings.chats_dir,
         export_dir=settings.training_dir / "export",
+        books_path=settings.books_path,
+        settings=settings,
+        fine_tune=load_integrations().fine_tune,
+        persona=persona,
     )
     path = exporter.export_sft()
-    console.print(f"[green]Exported SFT[/green] → {path}")
+    stats = exporter.sft_preview()
+    console.print(
+        f"[green]Exported SFT[/green] → {path} "
+        f"({stats.chat_examples} chat + {stats.web_examples} web + "
+        f"{stats.memory_examples + stats.book_examples} memory/book rows)"
+    )
 
 
 @export_app.command("dpo")
@@ -1034,6 +1209,74 @@ def export_memory_snapshot() -> None:
     )
     path = exporter.export_memory_snapshot()
     console.print(f"[green]Exported memory[/green] → {path}")
+
+
+def _training_exporter() -> TrainingExporter:
+    settings = _settings()
+    persona = _persona()
+    store = _store()
+    builder = ContextBuilder(store, persona)
+    return TrainingExporter(
+        store=store,
+        context_builder=builder,
+        chats_dir=settings.chats_dir,
+        export_dir=settings.training_dir / "export",
+        books_path=settings.books_path,
+        settings=settings,
+        fine_tune=load_integrations().fine_tune,
+        persona=persona,
+        search_client=OllamaClient(persona.llm),
+    )
+
+
+@train_app.command("run")
+def train_run(
+    base_model: Annotated[
+        str | None,
+        typer.Option(help="Ollama base model (defaults to persona chat model)"),
+    ] = None,
+    output_model: Annotated[
+        str | None,
+        typer.Option(help="Ollama model name to create"),
+    ] = None,
+) -> None:
+    """Export SFT data, fine-tune with LoRA, and register the model in Ollama."""
+    if not training_deps_available():
+        console.print(f"[red]Missing training dependencies.[/red] {training_requirements_hint()}")
+        raise typer.Exit(1)
+
+    persona = _persona()
+    config = load_integrations()
+    ft = config.fine_tune
+    ft.base_model = (base_model or ft.base_model or persona.llm.model).strip()
+    ft.output_model = (output_model or ft.output_model).strip()
+    if not ft.base_model or not ft.output_model:
+        raise typer.BadParameter("base_model and output_model are required")
+
+    runner = FineTuneRunner(
+        config=ft,
+        settings=_settings(),
+        persona=persona,
+        exporter=_training_exporter(),
+        ollama=OllamaClient(persona.llm),
+    )
+    try:
+        result = run_fine_tune_sync(runner)
+    except FineTuneBusyError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    except Exception as exc:
+        console.print(f"[red]Fine-tune failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"[green]Fine-tune complete[/green] → {result.output_model}\n"
+        f"SFT export: {result.sft_path}\n"
+        f"Adapter: {result.adapter_gguf}\n"
+        f"Examples: {result.stats.total_examples}"
+    )
+    if ft.set_as_chat_model:
+        console.print(f"Chat model set to [bold]{result.output_model}[/bold]")
 
 
 @dataset_app.command("prepare-summarization")

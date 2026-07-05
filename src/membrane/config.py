@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
-import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    return here.parents[2]
 
 
 class LLMConfig(BaseModel):
@@ -36,6 +38,16 @@ class LLMConfig(BaseModel):
         default=0,
         ge=0,
         description="Concurrent Ollama requests (0 or 1 recommended on CPU-only)",
+    )
+    context_window: int = Field(
+        default=8192,
+        ge=1024,
+        le=2_097_152,
+        description="Approximate model context size in tokens (for usage meter)",
+    )
+    thinking_enabled: bool = Field(
+        default=False,
+        description="Request chain-of-thought from Ollama thinking models (DeepSeek R1, Qwen3, …)",
     )
 
 
@@ -67,6 +79,10 @@ class StyleConfig(BaseModel):
     max_length: str = "short"
     empathy_level: float = Field(default=0.6, ge=0.0, le=1.0)
     proactivity: float = Field(default=0.4, ge=0.0, le=1.0)
+    independent_opinions: bool = Field(
+        default=True,
+        description="Share honest views even when they differ from the user's",
+    )
 
 
 class MemoryConfig(BaseModel):
@@ -84,6 +100,55 @@ class BoundariesConfig(BaseModel):
     ask_when_unsure: bool = True
 
 
+class WebSearchConfig(BaseModel):
+    enabled: bool = Field(
+        default=False,
+        description="Allow chat to search the web (queries leave your machine)",
+    )
+    max_results: int = Field(default=5, ge=1, le=10)
+    timeout_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
+
+
+class FirecrawlConfig(BaseModel):
+    enabled: bool = Field(
+        default=False,
+        description="Use a local Firecrawl instance (Podman/Docker) to scrape pages",
+    )
+    base_url: str = Field(
+        default="http://localhost:3002",
+        description="Firecrawl API base URL (self-hosted, no account required)",
+    )
+    api_key: str = Field(
+        default="",
+        description="Optional API key when USE_DB_AUTHENTICATION is enabled on Firecrawl",
+    )
+    timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
+    max_chars: int = Field(default=8000, ge=1000, le=50000)
+    scrape_in_chat: bool = Field(
+        default=False,
+        description="After web search, scrape top result pages into chat context",
+    )
+    max_pages_in_chat: int = Field(default=2, ge=0, le=5)
+
+
+class ShellConfig(BaseModel):
+    enabled: bool = Field(
+        default=False,
+        description="Allow chat to run shell commands in a bubblewrap sandbox (sudo blocked)",
+    )
+    timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0)
+    max_output_chars: int = Field(default=8000, ge=500, le=50000)
+    max_commands_per_turn: int = Field(default=5, ge=1, le=10)
+    workspace_dir: str = Field(
+        default="",
+        description="Writable sandbox directory (default: data/shell_workspace)",
+    )
+    allow_network: bool = Field(
+        default=False,
+        description="Allow outbound network access from sandboxed commands",
+    )
+
+
 class PersonaConfig(BaseModel):
     identity: dict[str, str] = Field(default_factory=dict)
     style: StyleConfig = Field(default_factory=StyleConfig)
@@ -92,6 +157,9 @@ class PersonaConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
+    web_search: WebSearchConfig = Field(default_factory=WebSearchConfig)
+    firecrawl: FirecrawlConfig = Field(default_factory=FirecrawlConfig)
+    shell: ShellConfig = Field(default_factory=ShellConfig)
     self_names: list[str] = Field(default_factory=lambda: ["Nikhil"])
 
 
@@ -99,6 +167,17 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MEMBRANE_", extra="ignore")
 
     root: Path = Field(default_factory=project_root)
+    database_url: str = Field(
+        default="",
+        description="SQLAlchemy database URL (default: sqlite in config/membrane.db)",
+    )
+
+    @property
+    def database_url_resolved(self) -> str:
+        if self.database_url.strip():
+            return self.database_url.strip()
+        db_path = (self.config_dir / "membrane.db").resolve()
+        return f"sqlite:///{db_path}"
 
     @property
     def config_dir(self) -> Path:
@@ -170,8 +249,16 @@ class Settings(BaseSettings):
         return self.data_dir / "corpus" / "wiki"
 
     @property
+    def books_path(self) -> Path:
+        return self.data_dir / "books" / "books.json"
+
+    @property
     def chats_dir(self) -> Path:
         return self.data_dir / "chats"
+
+    @property
+    def shell_workspace_dir(self) -> Path:
+        return self.data_dir / "shell_workspace"
 
     @property
     def datasets_dir(self) -> Path:
@@ -200,8 +287,10 @@ class Settings(BaseSettings):
         return self.data_dir / source / "parsed"
 
     @property
-    def persona_path(self) -> Path:
-        return self.config_dir / "persona.yaml"
+    def config_db_path(self) -> Path:
+        from membrane.config_store import config_db_path
+
+        return config_db_path()
 
 
 @lru_cache
@@ -209,21 +298,27 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def load_persona(path: Path | None = None) -> PersonaConfig:
-    settings = get_settings()
-    persona_path = path or settings.persona_path
-    if not persona_path.exists():
-        example = settings.config_dir / "persona.example.yaml"
-        if example.exists():
-            persona_path = example
-        else:
-            return PersonaConfig()
-    raw: dict[str, Any] = yaml.safe_load(persona_path.read_text(encoding="utf-8")) or {}
+def load_persona() -> PersonaConfig:
+    from membrane.config_store import NAMESPACE_PERSONA, ensure_config_db, load_config_raw
+
+    ensure_config_db()
+    raw = load_config_raw(NAMESPACE_PERSONA)
+    if raw is None:
+        return PersonaConfig()
     return PersonaConfig.model_validate(raw)
+
+
+def save_persona(persona: PersonaConfig) -> Path:
+    from membrane.config_store import NAMESPACE_PERSONA, save_config_raw
+
+    return save_config_raw(NAMESPACE_PERSONA, persona.model_dump(mode="python"))
 
 
 def ensure_data_layout(root: Path | None = None) -> None:
     settings = Settings(root=root or project_root())
+    from membrane.config_store import ensure_config_db
+
+    ensure_config_db()
     dirs = [
         settings.config_dir,
         settings.memory_dir,
@@ -239,6 +334,8 @@ def ensure_data_layout(root: Path | None = None) -> None:
         settings.wiki_corpus_dir / "raw",
         settings.wiki_corpus_dir / "datasets",
         settings.chats_dir,
+        settings.shell_workspace_dir,
+        settings.books_path.parent,
         settings.datasets_dir / "summarization",
         settings.datasets_dir / "coding",
         settings.datasets_dir / "personal_assistant",

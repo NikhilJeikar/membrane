@@ -86,6 +86,22 @@ class MemoryStore:
         entries.append(entry)
         self.save_preferences(entries)
 
+    def delete_profile(self, key: str) -> bool:
+        entries = self.load_profile()
+        kept = [e for e in entries if e.key != key]
+        if len(kept) == len(entries):
+            return False
+        self.save_profile(kept)
+        return True
+
+    def delete_preference(self, key: str) -> bool:
+        entries = self.load_preferences()
+        kept = [e for e in entries if e.key != key]
+        if len(kept) == len(entries):
+            return False
+        self.save_preferences(kept)
+        return True
+
     def append_episode(self, entry: EpisodeEntry) -> None:
         episodes = self.load_episodes()
         episodes.append(entry)

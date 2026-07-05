@@ -43,4 +43,4 @@ cd ui && npm run dev
 | Live memory | Profile, preferences, episodes tables |
 | Ingest | Per-source raw/parsed counts, trigger parse |
 | Server | Ingest server token + curl examples |
-| Policies | Edit `config/training_policy.yaml` toggles |
+| Policies | Edit training policy toggles (stored in config DB) |

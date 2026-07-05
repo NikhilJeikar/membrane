@@ -21,6 +21,10 @@ data/whatsapp/parsed/*
 !data/whatsapp/parsed/.gitkeep
 data/chats/*
 !data/chats/.gitkeep
+data/shell_workspace/*
+!data/shell_workspace/.gitkeep
+data/test_shell_workspace/*
+!data/test_shell_workspace/.gitkeep
 data/training/export/*
 !data/training/export/.gitkeep
 data/cursor/raw/*
@@ -48,7 +52,9 @@ data/corpus/wiki/datasets/*
 !data/corpus/wiki/datasets/.gitkeep
 data/datasets/summarization/*.jsonl
 !data/datasets/summarization/README.md
-data/ingest_manifest.json
+config/membrane.db
+config/membrane.db-*
+data/server/oauth_state.json
 
 # Memory with real personal info
 memory/profile.json
