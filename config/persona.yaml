@@ -1,0 +1,49 @@
+identity:
+  name: "Nikhil's assistant"
+  timezone: "Asia/Kolkata"
+
+self_names:
+  - "Nikhil"
+  - "You"
+
+style:
+  format: "bullets"
+  max_length: "short"
+  empathy_level: 0.6
+  proactivity: 0.4
+
+memory:
+  use_profile: true
+  use_preferences: true
+  use_episodes: true
+  max_episodes_in_context: 5
+  confirm_before_save: true
+
+boundaries:
+  never_claim_to_have_done:
+    - booked
+    - sent email
+    - called
+    - paid
+  ask_when_unsure: true
+
+llm:
+  provider: ollama
+  base_url: "http://localhost:11434"
+  model: "qwen2.5:3b"
+  extractor_model: "qwen2.5:3b"
+  temperature: 0.3
+  timeout_seconds: 600
+  max_retries: 2
+  num_threads: 0          # 0 = use all CPU cores per Ollama request
+  parallel_requests: 1    # keep at 1 on CPU — higher values cause timeouts
+
+performance:
+  workers: 0             # 0 = use (CPU cores - 1) for parallel ingest/extract
+
+server:
+  host: "127.0.0.1"
+  port: 8765
+  token: ""
+  parse_interval_seconds: 300
+  auto_extract: false

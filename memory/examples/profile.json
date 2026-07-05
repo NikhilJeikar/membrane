@@ -1,0 +1,20 @@
+[
+  {
+    "id": "example001",
+    "key": "timezone",
+    "value": "Asia/Kolkata (IST)",
+    "confidence": 1.0,
+    "source": "manual",
+    "updated_at": "2026-07-05T00:00:00+05:30",
+    "evidence": ["Set manually in example profile"]
+  },
+  {
+    "id": "example002",
+    "key": "occupation",
+    "value": "Software engineer",
+    "confidence": 0.95,
+    "source": "manual",
+    "updated_at": "2026-07-05T00:00:00+05:30",
+    "evidence": []
+  }
+]

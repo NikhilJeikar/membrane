@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Project — private data (never commit real chats)
+data/whatsapp/raw/*
+!data/whatsapp/raw/.gitkeep
+data/whatsapp/parsed/*
+!data/whatsapp/parsed/.gitkeep
+data/chats/*
+!data/chats/.gitkeep
+data/training/export/*
+!data/training/export/.gitkeep
+data/cursor/raw/*
+!data/cursor/raw/.gitkeep
+data/cursor/parsed/*
+!data/cursor/parsed/.gitkeep
+data/email/raw/*
+!data/email/raw/.gitkeep
+data/email/parsed/*
+!data/email/parsed/.gitkeep
+data/calendar/raw/*
+!data/calendar/raw/.gitkeep
+data/calendar/parsed/*
+!data/calendar/parsed/.gitkeep
+data/search/raw/*
+!data/search/raw/.gitkeep
+data/search/parsed/*
+!data/search/parsed/.gitkeep
+data/server/token
+ui/node_modules/
+ui/dist/
+data/corpus/wiki/raw/*
+!data/corpus/wiki/raw/.gitkeep
+data/corpus/wiki/datasets/*
+!data/corpus/wiki/datasets/.gitkeep
+data/datasets/summarization/*.jsonl
+!data/datasets/summarization/README.md
+data/ingest_manifest.json
+
+# Memory with real personal info
+memory/profile.json
+memory/preferences.json
+memory/episodes.jsonl
+memory/proposed/*
+!memory/proposed/.gitkeep
+memory/approved/*
+!memory/approved/.gitkeep
+
+# Keep examples only
+!memory/examples/
+
+# Coverage / tests
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/

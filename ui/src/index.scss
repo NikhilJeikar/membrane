@@ -1,0 +1,215 @@
+// Carbon shell + page layout fixes
+body {
+  margin: 0;
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+// Shell layout — sidenav + content offset (Carbon fixed nav is position:fixed)
+.app-shell {
+  min-height: 100vh;
+
+  &--nav-expanded .page-content {
+    margin-left: 16rem;
+  }
+
+  &:not(.app-shell--nav-expanded) .page-content {
+    margin-left: 0;
+  }
+}
+
+.app-sidenav {
+  z-index: 8000;
+}
+
+// Header status tags (not inside HeaderGlobalAction)
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 1rem;
+  flex-wrap: wrap;
+}
+
+// Content area
+.page-content {
+  padding: 2rem 2rem 4rem;
+  max-width: 105rem;
+  transition: margin-left 0.11s cubic-bezier(0.2, 0, 0.38, 0.9);
+  min-height: calc(100vh - 3rem);
+}
+
+.page-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--cds-border-subtle-01);
+
+  &__breadcrumb {
+    margin-bottom: 0.75rem;
+  }
+
+  &__title {
+    font-size: 2rem;
+    font-weight: 400;
+    line-height: 1.25;
+    margin: 0 0 0.5rem;
+    letter-spacing: 0;
+  }
+
+  &__description {
+    font-size: 1rem;
+    color: var(--cds-text-secondary);
+    margin: 0;
+    max-width: 48rem;
+    line-height: 1.5;
+  }
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cds-text-secondary);
+  margin: 2rem 0 1rem;
+}
+
+.stat-tile {
+  height: 100%;
+  min-height: 7rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--cds-layer-01) !important;
+
+  &__label {
+    font-size: 0.875rem;
+    color: var(--cds-text-secondary);
+    margin: 0;
+  }
+
+  &__value {
+    font-size: 2rem;
+    font-weight: 300;
+    margin: 0.5rem 0 0;
+    line-height: 1.2;
+  }
+
+  &__hint {
+    font-size: 0.75rem;
+    color: var(--cds-text-helper);
+    margin-top: 0.5rem;
+  }
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  align-items: start;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-sidebar {
+  position: sticky;
+  top: 1rem;
+}
+
+.review-card {
+  background: var(--cds-layer-01);
+  padding: 1.5rem;
+  border: 1px solid var(--cds-border-subtle-01);
+}
+
+.review-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.review-card__summary {
+  font-size: 1.125rem;
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+
+.review-card__meta {
+  color: var(--cds-text-secondary);
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.review-card__warning {
+  background: var(--cds-layer-accent-01);
+  border-left: 3px solid var(--cds-support-warning);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.detail-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", "Menlo", monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  padding: 1rem;
+  margin: 0;
+  background: var(--cds-layer-02);
+  border: 1px solid var(--cds-border-subtle-01);
+  max-height: 20rem;
+  overflow: auto;
+}
+
+.policy-source {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem !important;
+  background: var(--cds-layer-01) !important;
+}
+
+.panel-tile {
+  padding: 1.5rem !important;
+  background: var(--cds-layer-01) !important;
+  margin-top: 1rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: var(--cds-layer-01);
+  border: 1px dashed var(--cds-border-subtle-01);
+
+  p {
+    color: var(--cds-text-secondary);
+    margin: 0.5rem 0 0;
+  }
+}
+
+.episode-item {
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  background: var(--cds-layer-01);
+  border-left: 3px solid var(--cds-border-interactive);
+
+  p {
+    margin: 0.5rem 0 0;
+    line-height: 1.5;
+  }
+
+  small {
+    color: var(--cds-text-helper);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.6875rem;
+  }
+}

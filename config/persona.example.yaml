@@ -1,0 +1,49 @@
+identity:
+  name: "Nikhil's assistant"
+  timezone: "Asia/Kolkata"
+
+self_names:
+  - "Nikhil"
+  - "You"
+
+style:
+  format: "bullets"
+  max_length: "short"
+  empathy_level: 0.6
+  proactivity: 0.4
+
+memory:
+  use_profile: true
+  use_preferences: true
+  use_episodes: true
+  max_episodes_in_context: 5
+  confirm_before_save: true
+
+boundaries:
+  never_claim_to_have_done:
+    - booked
+    - sent email
+    - called
+    - paid
+  ask_when_unsure: true
+
+llm:
+  provider: ollama
+  base_url: "http://localhost:11434"
+  model: "qwen2.5:7b"
+  extractor_model: "qwen2.5:7b"
+  temperature: 0.3
+  timeout_seconds: 600
+  max_retries: 2
+  num_threads: 0
+  parallel_requests: 1
+
+performance:
+  workers: 0
+
+server:
+  host: "127.0.0.1"
+  port: 8765
+  token: ""                    # or set SHADOW_PA env; auto-generated in data/server/token
+  parse_interval_seconds: 300  # raw → parsed every 5 min
+  auto_extract: false          # if true, create proposals after each parse (offline)
