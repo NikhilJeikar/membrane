@@ -4,17 +4,17 @@
 
 ```bash
 # Quick sample via Wikipedia API (no extra deps)
-shadow-pa ingest wiki --limit 500 --lang en
+membrane ingest wiki --limit 500 --lang en
 
 # Large corpus via Hugging Face
-pip install 'shadow-pa[corpus]'
-shadow-pa ingest wiki --hf --limit 10000 --lang en
+pip install 'membrane[corpus]'
+membrane ingest wiki --hf --limit 10000 --lang en
 
 # Build JSONL (add --label for local Ollama summaries)
-shadow-pa dataset prepare-summarization --lang en --label
+membrane dataset prepare-summarization --lang en --label
 
 # Copy to training export
-shadow-pa export summarization --lang en
+membrane export summarization --lang en
 ```
 
 Output: `data/datasets/summarization/wiki_en.jsonl`

@@ -1,4 +1,4 @@
-# shadow-pa UI (IBM Carbon)
+# membrane UI (IBM Carbon)
 
 React + [Carbon Design System](https://carbondesignsystem.com/) control panel for memory review, ingest, server, and training policies.
 
@@ -19,7 +19,7 @@ npm run build
 ```bash
 # from project root
 pip install -e ".[ui]"
-shadow-pa ui run
+membrane ui run
 # → http://127.0.0.1:8787
 ```
 
@@ -27,7 +27,7 @@ shadow-pa ui run
 
 ```bash
 # terminal 1
-shadow-pa ui run --dev
+membrane ui run --dev
 
 # terminal 2
 cd ui && npm run dev

@@ -60,7 +60,7 @@ export default function IngestPage() {
       <PageHeader
         title="Ingest"
         description="Raw → parsed pipeline with hash tracking. Unchanged files are skipped automatically."
-        breadcrumbs={[{ label: "shadow-pa", href: "/" }, { label: "Ingest" }]}
+        breadcrumbs={[{ label: "membrane", href: "/" }, { label: "Ingest" }]}
       />
 
       <Button

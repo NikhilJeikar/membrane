@@ -39,7 +39,7 @@ export default function MemoryPage() {
       <PageHeader
         title="Live memory"
         description="Committed facts injected at inference time. Proposed drafts are not shown here."
-        breadcrumbs={[{ label: "shadow-pa", href: "/" }, { label: "Live memory" }]}
+        breadcrumbs={[{ label: "membrane", href: "/" }, { label: "Live memory" }]}
       />
 
       <Tabs>

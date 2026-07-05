@@ -10,7 +10,7 @@ import {
 import PageHeader from "../components/PageHeader";
 import { api, SourcePolicy, TrainingPolicy } from "../api";
 
-const SOURCE_NAMES = ["email", "calendar", "search", "cursor", "whatsapp", "wiki"];
+const SOURCE_NAMES = ["email", "calendar", "search", "cursor", "claude", "openai", "whatsapp", "wiki"];
 
 const DEFAULT_SOURCE: SourcePolicy = {
   ingest: true,
@@ -79,7 +79,7 @@ export default function PoliciesPage() {
       <PageHeader
         title="Training & ingest policies"
         description="Phase 1: manual review. Phase 2: per-source rules for nightly ingest, extract, and training."
-        breadcrumbs={[{ label: "shadow-pa", href: "/" }, { label: "Policies" }]}
+        breadcrumbs={[{ label: "membrane", href: "/" }, { label: "Policies" }]}
       />
 
       <Dropdown

@@ -1,4 +1,4 @@
-# shadow-pa
+# membrane
 
 Local personal assistant framework: memory, WhatsApp shadowing, and privacy-first learning. No cloud teachers — personal data stays on your machine.
 
@@ -6,7 +6,7 @@ Local personal assistant framework: memory, WhatsApp shadowing, and privacy-firs
 
 - **Structured memory** — profile facts, preferences, episodic summaries
 - **WhatsApp ingest** — parse exports, redact PII, extract learnings locally
-- **Cursor ingest** — decode agent transcript JSONL, strip tool calls, learn from sessions
+- **Agent ingest** — parse Cursor, Claude Code, and OpenAI-style session JSONL; auto-detect format
 - **Hash tracking** — SHA256 manifest skips unchanged raw/parsed files on ingest and extract
 - **Ingest server** — local HTTP collector for email, calendar, and search history
 - **Wikipedia corpus** — download articles for summarization training (API or Hugging Face)
@@ -18,7 +18,7 @@ Local personal assistant framework: memory, WhatsApp shadowing, and privacy-firs
 ## Quick start
 
 ```bash
-cd ~/Projects/shadow-pa
+cd ~/Projects/membrane
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -29,51 +29,54 @@ cp memory/examples/preferences.json memory/preferences.json
 cp config/persona.example.yaml config/persona.yaml
 
 # Ingest a WhatsApp export (without media)
-shadow-pa ingest whatsapp data/whatsapp/raw/my-chat.txt --self-name "Nikhil"
+membrane ingest whatsapp data/whatsapp/raw/my-chat.txt --self-name "Nikhil"
 
-# Ingest Cursor agent sessions (all transcripts under a project)
-shadow-pa ingest cursor ~/.cursor/projects/empty-window/agent-transcripts/
+# Ingest AI agent sessions (Cursor, Claude Code, or auto-detect format)
+membrane ingest agent ~/.cursor/projects/empty-window/agent-transcripts/
+membrane ingest agent ~/.claude/projects/ --provider claude
+membrane ingest cursor ~/.cursor/projects/empty-window/agent-transcripts/   # alias for --provider cursor
 
 # Download Wikipedia for summarization training (API sample)
-shadow-pa ingest wiki --limit 500 --lang en
+membrane ingest wiki --limit 500 --lang en
 
 # Full Wikipedia stream via Hugging Face (install corpus extra first)
-pip install 'shadow-pa[corpus]'
-shadow-pa ingest wiki --hf --limit 5000 --lang en
+pip install 'membrane[corpus]'
+membrane ingest wiki --hf --limit 5000 --lang en
 
 # Prepare summarization dataset (optional: label with local Ollama)
-shadow-pa dataset prepare-summarization --lang en
-shadow-pa dataset prepare-summarization --lang en --label
+membrane dataset prepare-summarization --lang en
+membrane dataset prepare-summarization --lang en --label
 
 # Extract memory proposals (requires Ollama running locally)
-shadow-pa extract run --source cursor
-shadow-pa extract run --source all
+membrane extract run --source agents   # all agent providers (cursor, claude, …)
+membrane extract run --source cursor
+membrane extract run --source all
 
 # Only new/changed files are processed (tracked in data/ingest_manifest.json)
-shadow-pa ingest cursor ~/.cursor/projects/.../agent-transcripts/   # skips unchanged raw
-shadow-pa extract run --source cursor                                 # skips already extracted
-shadow-pa extract run --source cursor --force                         # re-extract everything
+membrane ingest agent ~/.cursor/projects/.../agent-transcripts/     # auto-detect provider
+membrane extract run --source agents                                 # skips already extracted
+membrane extract run --source cursor --force                         # re-extract one provider
 
 # One-time migration if you already ingested/extracted before tracking existed:
-shadow-pa tracking reconcile
-shadow-pa tracking mark-extracted --source cursor
+membrane tracking reconcile
+membrane tracking mark-extracted --source cursor
 
 # Web UI (IBM Carbon)
 pip install -e ".[ui]"
 cd ui && npm install && npm run build
-shadow-pa ui run
-# Dev: terminal 1 → shadow-pa ui run --dev   terminal 2 → cd ui && npm run dev
+membrane ui run
+# Dev: terminal 1 → membrane ui run --dev   terminal 2 → cd ui && npm run dev
 
 # Review and approve proposals
-shadow-pa memory list-proposed
-shadow-pa memory review                    # interactive: a=approve, r=reject, s=skip, q=quit
-shadow-pa memory review --category profile # filter by type
-shadow-pa memory approve --all             # bulk approve (use carefully)
+membrane memory list-proposed
+membrane memory review                    # interactive: a=approve, r=reject, s=skip, q=quit
+membrane memory review --category profile # filter by type
+membrane memory approve --all             # bulk approve (use carefully)
 
 # Local ingest server (email, calendar, search history)
-shadow-pa server run                       # listens on 127.0.0.1:8765, parses every 5 min
-shadow-pa server status                    # show counts + auth token
-shadow-pa server parse                     # one-shot raw → parsed
+membrane server run                       # listens on 127.0.0.1:8765, parses every 5 min
+membrane server status                    # show counts + auth token
+membrane server parse                     # one-shot raw → parsed
 
 # Send data (use token from server status)
 curl -X POST http://127.0.0.1:8765/v1/ingest/search \
@@ -82,28 +85,28 @@ curl -X POST http://127.0.0.1:8765/v1/ingest/search \
   -d '{"items":[{"query":"fedora hyprland ricing","engine":"google"}]}'
 
 # Extract → review → approve (same workflow as Cursor)
-shadow-pa extract run --source search --offline
-shadow-pa memory review
+membrane extract run --source search --offline
+membrane memory review
 
 # Build prompt context for inference
-shadow-pa context build "What did we plan for Goa?"
+membrane context build "What did we plan for Goa?"
 
 # Export training data
-shadow-pa export sft
-shadow-pa export dpo
-shadow-pa export summarization --lang en
+membrane export sft
+membrane export dpo
+membrane export summarization --lang en
 ```
 
 ## Project layout
 
 ```
-shadow-pa/
+membrane/
 ├── config/persona.yaml       # Controllable behavior knobs
 ├── memory/                   # Live memory store (gitignored)
 ├── memory/examples/          # Safe templates committed to git
 ├── data/
+│   ├── agents/               # AI agent transcripts (cursor, claude, openai, …)
 │   ├── whatsapp/             # Raw + parsed chat exports
-│   ├── cursor/               # Cursor agent transcript ingest
 │   ├── email/                # Server-ingested email (raw + parsed)
 │   ├── calendar/             # Server-ingested calendar events
 │   ├── search/               # Server-ingested search history
@@ -113,7 +116,7 @@ shadow-pa/
 │   ├── datasets/             # Distillation datasets by task
 │   ├── training/             # SFT/DPO export output
 │   └── ingest_manifest.json  # Raw/parsed/extracted SHA256 tracking (gitignored)
-└── src/shadow_pa/            # Python package
+└── src/membrane/            # Python package
 ```
 
 ## Local LLM (Ollama)

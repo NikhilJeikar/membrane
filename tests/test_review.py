@@ -1,14 +1,14 @@
 """Tests for interactive memory review helpers."""
 
-from shadow_pa.memory.models import (
+from membrane.memory.models import (
     MemoryCategory,
     MemoryProposal,
     MemorySource,
     ProfileEntry,
     ProposalStatus,
 )
-from shadow_pa.memory.review import _existing_memory_note, _proposal_body
-from shadow_pa.memory.store import MemoryStore
+from membrane.memory.review import _existing_memory_note, _proposal_body
+from membrane.memory.store import MemoryStore
 
 
 def test_proposal_body_includes_profile_fields():

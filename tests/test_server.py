@@ -3,10 +3,10 @@
 import json
 from pathlib import Path
 
-from shadow_pa.ingest.email import parse_email_raw
-from shadow_pa.ingest.lifecycle import parse_server_source
-from shadow_pa.ingest.server_common import load_parsed_records, save_raw_envelope
-from shadow_pa.tracking.manifest import ManifestStore
+from membrane.ingest.email import parse_email_raw
+from membrane.ingest.lifecycle import parse_server_source
+from membrane.ingest.server_common import load_parsed_records, save_raw_envelope
+from membrane.tracking.manifest import ManifestStore
 
 
 def test_save_and_parse_email(tmp_path: Path):
@@ -51,7 +51,7 @@ def test_parse_server_source_skips_unchanged(tmp_path: Path):
 
 
 def test_search_payload_single_item(tmp_path: Path):
-    from shadow_pa.ingest.search import parse_search_raw
+    from membrane.ingest.search import parse_search_raw
 
     raw_dir = tmp_path / "raw"
     parsed_dir = tmp_path / "parsed"

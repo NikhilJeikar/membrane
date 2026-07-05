@@ -21,8 +21,8 @@ export default function ServerPage() {
     <>
       <PageHeader
         title="Ingest server"
-        description="Local HTTP collector for email, calendar, and search history. Start with shadow-pa server run."
-        breadcrumbs={[{ label: "shadow-pa", href: "/" }, { label: "Server" }]}
+        description="Local HTTP collector for email, calendar, and search history. Start with membrane server run."
+        breadcrumbs={[{ label: "membrane", href: "/" }, { label: "Server" }]}
       />
 
       <Grid narrow fullWidth>

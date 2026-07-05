@@ -27,9 +27,9 @@ export default function DashboardPage({ status }: Props) {
     {
       title: "Ingest",
       items: [
-        { label: "Cursor sessions", value: status.cursor_parsed },
+        { label: "Agent sessions", value: status.agent_sessions },
         { label: "Tracked files", value: status.tracked_entries },
-        { label: "Needs re-extract", value: status.stale_extract_cursor },
+        { label: "Needs re-extract", value: status.stale_extract_agents },
         { label: "Chat sessions", value: status.chats },
       ],
     },
@@ -49,7 +49,7 @@ export default function DashboardPage({ status }: Props) {
       <PageHeader
         title="Dashboard"
         description="Local control plane for memory review, ingest pipelines, and training policies. All data stays on your machine."
-        breadcrumbs={[{ label: "shadow-pa", href: "/" }, { label: "Dashboard" }]}
+        breadcrumbs={[{ label: "membrane", href: "/" }, { label: "Dashboard" }]}
       />
 
       {groups.map((group) => (

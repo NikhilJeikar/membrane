@@ -21,8 +21,8 @@ export type Status = {
   preference_count: number;
   episode_count: number;
   tracked_entries: number;
-  stale_extract_cursor: number;
-  cursor_parsed: number;
+  agent_sessions: number;
+  stale_extract_agents: number;
   chats: number;
   phase: string;
 };

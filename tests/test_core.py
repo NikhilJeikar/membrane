@@ -1,15 +1,15 @@
-"""Tests for shadow-pa."""
+"""Tests for membrane."""
 
 import json
 from pathlib import Path
 
-from shadow_pa.config import ensure_data_layout
-from shadow_pa.ingest.cursor import format_cursor_chunk_for_extraction, parse_cursor_transcript
-from shadow_pa.ingest.whatsapp import parse_whatsapp_export
-from shadow_pa.ingest.wikipedia import WikipediaArticle, build_summarization_corpus
-from shadow_pa.memory.models import MemoryCategory, MemoryProposal, ProfileEntry
-from shadow_pa.memory.store import MemoryStore
-from shadow_pa.utils.redact import redact_text
+from membrane.config import ensure_data_layout
+from membrane.ingest.cursor import format_cursor_chunk_for_extraction, parse_cursor_transcript
+from membrane.ingest.whatsapp import parse_whatsapp_export
+from membrane.ingest.wikipedia import WikipediaArticle, build_summarization_corpus
+from membrane.memory.models import MemoryCategory, MemoryProposal, ProfileEntry
+from membrane.memory.store import MemoryStore
+from membrane.utils.redact import redact_text
 
 
 SAMPLE_EXPORT = """[05/07/2026, 10:32:15] Nikhil: Can we move gym to Tue/Thu?
@@ -94,7 +94,7 @@ def test_memory_store_propose_approve(tmp_path: Path):
 def test_ensure_data_layout(tmp_path: Path):
     ensure_data_layout(tmp_path)
     assert (tmp_path / "data" / "whatsapp" / "raw").is_dir()
-    assert (tmp_path / "data" / "cursor" / "parsed").is_dir()
+    assert (tmp_path / "data" / "agents" / "cursor" / "parsed").is_dir()
     assert (tmp_path / "data" / "corpus" / "wiki" / "raw").is_dir()
 
 
@@ -107,7 +107,7 @@ def test_build_summarization_corpus():
 
 
 def test_offline_extract_cursor(tmp_path: Path):
-    from shadow_pa.shadow.offline import offline_extract_cursor_file
+    from membrane.shadow.offline import offline_extract_cursor_file
 
     parsed = tmp_path / "sess1.jsonl"
     parsed.write_text(
@@ -118,14 +118,14 @@ def test_offline_extract_cursor(tmp_path: Path):
                 "session_id": "sess1",
                 "source_file": "sess1.jsonl",
                 "turn_index": 0,
-                "has_tool_calls": False,
+                "agent": "cursor",
             }
         )
         + "\n",
         encoding="utf-8",
     )
     meta = tmp_path / "sess1.meta.json"
-    meta.write_text(json.dumps({"workspace_hint": "shadow-pa"}), encoding="utf-8")
+    meta.write_text(json.dumps({"workspace_hint": "membrane", "agent": "cursor"}), encoding="utf-8")
     proposals = offline_extract_cursor_file(parsed, tmp_path)
     assert any(p.profile and p.profile.key == "cursor_project" for p in proposals)
     assert any(p.category.value == "episode" for p in proposals)

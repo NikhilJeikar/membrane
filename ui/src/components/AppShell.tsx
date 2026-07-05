@@ -50,7 +50,7 @@ export default function AppShell() {
 
   return (
     <div className={`app-shell${sideNavExpanded ? " app-shell--nav-expanded" : ""}`}>
-      <Header aria-label="shadow-pa">
+      <Header aria-label="membrane">
         <SkipToContent href="#main-content" />
         <HeaderMenuButton
           aria-label={sideNavExpanded ? "Close navigation" : "Open navigation"}
@@ -58,7 +58,7 @@ export default function AppShell() {
           onClick={() => setSideNavExpanded((open) => !open)}
         />
         <HeaderName as={Link} to="/" prefix="">
-          shadow-pa
+          membrane
         </HeaderName>
         <HeaderGlobalBar>
           {status && (

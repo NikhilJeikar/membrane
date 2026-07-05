@@ -71,7 +71,7 @@ export default function ReviewPage() {
         title="Memory review"
         description="Approve or reject extracted memory. Approved items commit to profile.json, preferences.json, and episodes.jsonl."
         breadcrumbs={[
-          { label: "shadow-pa", href: "/" },
+          { label: "membrane", href: "/" },
           { label: "Memory review" },
         ]}
       />

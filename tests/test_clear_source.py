@@ -1,13 +1,13 @@
 """Tests for clearing memory by source."""
 
-from shadow_pa.memory.models import (
+from membrane.memory.models import (
     MemoryCategory,
     MemoryProposal,
     MemorySource,
     ProfileEntry,
 )
-from shadow_pa.memory.store import MemoryStore
-from shadow_pa.tracking.manifest import ManifestEntry, ManifestStore
+from membrane.memory.store import MemoryStore
+from membrane.tracking.manifest import ManifestEntry, ManifestStore
 
 
 def test_clear_source_removes_proposals_and_profile(tmp_path):
@@ -62,16 +62,16 @@ def test_remove_source_entries(tmp_path):
 
 
 def test_clear_ingest_data_cursor(tmp_path):
-    from shadow_pa.config import Settings
-    from shadow_pa.ingest.lifecycle import clear_ingest_data
+    from membrane.config import Settings
+    from membrane.ingest.lifecycle import clear_ingest_data
 
     settings = Settings(root=tmp_path)
-    settings.cursor_raw_dir.mkdir(parents=True)
-    settings.cursor_parsed_dir.mkdir(parents=True)
+    settings.agent_raw_dir("cursor").mkdir(parents=True)
+    settings.agent_parsed_dir("cursor").mkdir(parents=True)
     settings.chats_dir.mkdir(parents=True)
-    (settings.cursor_raw_dir / "s1.jsonl").write_text("{}", encoding="utf-8")
-    (settings.cursor_parsed_dir / "s1.jsonl").write_text("{}", encoding="utf-8")
-    (settings.cursor_parsed_dir / "s1.meta.json").write_text("{}", encoding="utf-8")
+    (settings.agent_raw_dir("cursor") / "s1.jsonl").write_text("{}", encoding="utf-8")
+    (settings.agent_parsed_dir("cursor") / "s1.jsonl").write_text("{}", encoding="utf-8")
+    (settings.agent_parsed_dir("cursor") / "s1.meta.json").write_text("{}", encoding="utf-8")
     (settings.chats_dir / "cursor-s1.json").write_text("{}", encoding="utf-8")
     (settings.chats_dir / "other.json").write_text("{}", encoding="utf-8")
 

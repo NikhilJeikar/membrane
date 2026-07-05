@@ -44,6 +44,6 @@ performance:
 server:
   host: "127.0.0.1"
   port: 8765
-  token: ""                    # or set SHADOW_PA env; auto-generated in data/server/token
+  token: ""                    # or set MEMBRANE env; auto-generated in data/server/token
   parse_interval_seconds: 300  # raw → parsed every 5 min
   auto_extract: false          # if true, create proposals after each parse (offline)

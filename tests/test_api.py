@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from shadow_pa.api.app import create_app
+from membrane.api.app import create_app
 
 
 def test_api_status():

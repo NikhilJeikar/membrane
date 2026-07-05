@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from shadow_pa.tracking.manifest import IngestManifest, ManifestStore, file_sha256
+from membrane.tracking.manifest import IngestManifest, ManifestStore, file_sha256
 
 
 def _write(path: Path, content: str) -> Path:
